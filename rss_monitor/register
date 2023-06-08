@@ -1,0 +1,1 @@
+python3 -m crontab_manager -r -i 120 ./rss_monitor.py

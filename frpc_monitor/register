@@ -1,0 +1,1 @@
+python3 -m crontab_manager -r -i 20 ./frpc_monitor.py
