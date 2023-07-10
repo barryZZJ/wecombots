@@ -32,8 +32,10 @@ def receive_post():
 
 def redirect(title, desp, link, task_id, task_title):
     # redirect to wecomchan
-    # msg = f'来自{task_title}的更新：\n标题：{title}\n内容：\n{desp}\n查看详情：{link}'
-    msg = f'来自{task_title}的更新：\n标题：{title}\n详情：{link}'
+    if 'テレビ王国' in task_title:
+        msg = f'来自{task_title}的更新：\n标题：{title}\n内容：\n{desp}\n查看详情：{link}'
+    else:
+        msg = f'来自{task_title}的更新：\n标题：{title}\n<a href="{link}">查看详情</a>'
     
     conf = load_conf()
     bot = wecomsan.WecomSan(**conf['bot'])
