@@ -1,7 +1,8 @@
 import time
 import httpx
-import ddddocr
 from bs4 import BeautifulSoup
+from sympy import Eq, solveset
+from sympy.abc import x
 
 import wecomsan
 from config import load_conf
@@ -32,8 +33,7 @@ class AuthError(BaseException):
     ...
 
 class URL:
-    login = '/wp-login.php'
-    captcha = '/wp-content/plugins/dx-login-register/extends/captcha/captcha.php'
+    login = '/login'
 
 c = httpx.Client(
     base_url='http://www.doki8.net',
@@ -42,30 +42,40 @@ c = httpx.Client(
     }
 )
 
-ocr = ddddocr.DdddOcr()
 
 template = {
     'log': 'bazinga123',
     'pwd': 'zzjzzj0123',
-    'captcha': '',
+    'mc-value': '',
     'wp-submit': '登录',
     'redirect_to': 'http://www.doki8.com/members/bazinga123/pointhistory/?loggedout=true',
     'testcookie': '1',
 }
 
+OPERATOR_TABLE = str.maketrans('+−', '+-')
+
 def fuck_captcha() -> str:
-    resp = c.get(URL.captcha)
-    captcha = ocr.classification(resp.content)
-    # with open('tmp.png', 'wb') as f:
-    #     f.write(resp.content)
-    return captcha
+    resp = c.get(URL.login)
+    parsed = BeautifulSoup(resp.text, 'html.parser')
+    span = parsed.select_one('.math-captcha-form>span')
+    # span.contents example:
+    # ['9 + 1 = ', <input aria-required="true" class="mc-input" id="mc-input" length="2" name="mc-value" size="2" type="text" value=""/>]
+    # ['83 + ', <input aria-required="true" class="mc-input" id="mc-input" length="2" name="mc-value" size="2" type="text" value=""/>, ' = 88']
+    # [<input aria-required="true" class="mc-input" id="mc-input" length="2" name="mc-value" size="2" type="text" value=""/>, ' − 4 = 4']
+    print(span)
+    equationstr = ''.join(str(expr) if isinstance(expr, str) else 'x' for expr in span.contents)
+    equationstr = equationstr.translate(OPERATOR_TABLE)
+    # '9 + 1 = x' or '83 + x = 88' or 'x - 4 = 4'
+    lhs, rhs = map(eval, equationstr.split('='))
+    equation = Eq(lhs, rhs)
+    solution = solveset(equation, x)
+    return str(solution.args[0])
 
 def login():
-    RETRY = 5
+    RETRY = 2
     TIMEOUT = 2
-    c.get(URL.login)
     data = template.copy()
-    data['captcha'] = fuck_captcha()
+    data['mc-value'] = fuck_captcha()
     # print(data['captcha'])
     for _ in range(RETRY):
         resp = c.post(URL.login, data=data)
@@ -73,14 +83,14 @@ def login():
         if resp.has_redirect_location or resp.status_code == 302:
             return True
         parsed = BeautifulSoup(resp.text, 'html.parser')
-        if res:=parsed.find(id='login_error'):
-            if '验证码' in res.text.strip():
+        if res := parsed.find(id='login_error'):
+            if 'captcha' in res.text.strip().lower():
                 print('wrong captcha, retrying...')
                 time.sleep(TIMEOUT)
                 data['captcha'] = fuck_captcha()
                 continue
             raise AuthError(res.decode_contents().strip())
-        raise AuthError('Unexpected error. Resp is ' + resp.text)
+        raise AuthError('Unexpected error: ' + str(res))
     raise AuthError('wrong captcha for ' + str(RETRY) + ' times!')
 
 if __name__ == '__main__':
