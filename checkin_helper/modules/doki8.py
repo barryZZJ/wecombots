@@ -3,9 +3,7 @@ import httpx
 from bs4 import BeautifulSoup
 from sympy import Eq, solveset
 from sympy.abc import x
-
-import wecomsan
-from config import load_conf
+from checker import BaseChecker
 
 # 0 10 * * * ~/doki8checkin/checkin.sh
 
@@ -20,14 +18,6 @@ from config import load_conf
 #         params['content'] = content
 #     c.get(url, params=params)
 
-
-def report(title, content=None):
-    print('title:', title, '\ncontent:', content)
-    msg = f'{title}\n{content}'
-    conf = load_conf()
-    bot = wecomsan.WecomSan(**conf['bot'])
-    bot.send(msg)
-    # push(SERVERCHAN_KEY, title, content)
 
 class AuthError(BaseException):
     ...
@@ -93,19 +83,11 @@ def login():
         raise AuthError('Unexpected error: ' + str(res))
     raise AuthError('wrong captcha for ' + str(RETRY) + ' times!')
 
-if __name__ == '__main__':
-    RETRY = 3
-    TIMEOUT = 60
-    for i in range(RETRY, 0, -1):
-        try:
-            if login():
-                title = '心动日剧：登陆成功'
-                report(title)
-                break
-        except Exception as err:
-            title = "心动日剧：登陆失败！remain=" + str(i-1)
-            content = str(type(err).__name__ + '\n' + str(err))
-            report(title, content)
-            time.sleep(TIMEOUT)
 
+class Doki8Checker(BaseChecker):
+    def __init__(self, retry: int = 3, timeout: int = 60):
+        super().__init__('心动日剧', retry, timeout)
+
+    def _check(self, *args, **kwargs):
+        login()
 

@@ -7,16 +7,16 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.proxy import Proxy, ProxyType
 
-import httpRequestUtil_contextmanager
-import wecomsan
-from config import load_conf
 
+from checker import BaseChecker, CheckError
 # 0 10 * * * python3 ~/yuyuncheckin/main.py
 
 url_login = 'https://app.rainyun.com/auth/login'
 url_points = 'https://app.rainyun.com/account/reward/earn'
 USER = 'barry'
 PASS = 'zzjzzj0123'
+
+
 # KEY = 'SCT164400THDN7R51ck5uOz8H3MAhIejfR'
 
 # def push(key, title, content=None):
@@ -28,7 +28,7 @@ PASS = 'zzjzzj0123'
 #         params['content'] = content
 #     with httpRequestUtil_contextmanager.httpRequest(r.Session(), url, 'get', params) as resp:
 #         pass
-    
+
 def genProxyCap():
     prox = Proxy()
     prox.proxy_type = ProxyType.MANUAL
@@ -38,9 +38,11 @@ def genProxyCap():
     prox.add_to_capabilities(capabilities)
     return capabilities
 
+
 def initbrowser():
     opt = webdriver.ChromeOptions()
-    opt.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36')
+    opt.add_argument(
+        'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36')
     opt.add_argument('--headless')  # 无界面
     opt.add_argument('--no-sandbox')
     opt.add_argument('--disable-dev-shm-usage')
@@ -51,6 +53,7 @@ def initbrowser():
     browser.implicitly_wait(30)
     wait = WebDriverWait(browser, 30)
     return browser, wait
+
 
 def login(browser, wait):
     # 登陆
@@ -66,9 +69,11 @@ def login(browser, wait):
     ele_sub.click()
     wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
 
+
 def checkin(browser, wait):
     # 打卡
     res = -1
+
     def find_ele_checkin():
         browser.get(url_points)
         ele_tab = browser.find_element(By.CSS_SELECTOR, 'div[role="tablist"]')
@@ -81,7 +86,7 @@ def checkin(browser, wait):
                 ele_checkin = ele_txt.find_element(By.XPATH, 'following-sibling::*')
                 break
         return ele_checkin
-    
+
     ele_checkin = find_ele_checkin()
     if not ele_checkin:
         msg = '未找到签到按钮'
@@ -98,44 +103,38 @@ def checkin(browser, wait):
         else:
             msg = '点击按钮后出现未预料结果'
     else:
-        msg = '未知按钮名：'+ele_checkin.text
+        msg = '未知按钮名：' + ele_checkin.text
     return msg, res
 
-def report(title, content=None):
-    print('title:', title, '\ncontent:', content)
-    msg = f'{title}\n{content}'
-    conf = load_conf()
-    bot = wecomsan.WecomSan(**conf['bot'])
-    bot.send(msg)
-    # push(KEY, title, content)
 
-if __name__ == '__main__':
-    browser, wait = initbrowser()
-    RETRY = 1
-    TIMEOUT = 60
-    while RETRY:
+class YuyunChecker(BaseChecker):
+    def __init__(self, retry: int = 3, timeout: int = 60):
+        super().__init__('雨云', retry, timeout)
+
+    def _prepare(self, context: dict, *args, **kwargs):
+        browser, wait = initbrowser()
+        context.update(dict(
+            browser=browser,
+            wait=wait
+        ))
+
+    def _check(self, context: dict, *args, **kwargs):
+        browser = context['browser']
+        wait = context['wait']
         try:
             login(browser, wait)
         except Exception as err:
-            title = '雨云：登录失败！重试中'
-            content = str(type(err).__name__) + '\n' + str(err)
-            report(title, content)
-            RETRY -= 1
-            time.sleep(TIMEOUT)
-            continue
+            raise CheckError('第一步登录失败！', str(err))
 
         try:
             msg, res = checkin(browser, wait)
-            assert res != -1, msg
-            report('雨云：' + msg)
-            break
+            if res != -1:
+                raise CheckError('第二步签到失败', msg)
         except Exception as err:
-            title = '雨云：签到失败！重试中'
             content = str(type(err).__name__) + '\n' + str(err)
-            report(title, content)
-            RETRY -= 1
-            time.sleep(TIMEOUT)
-            continue
+            raise CheckError('第二步签到失败', content)
 
-    browser.close()
-    browser.quit()
+    def _finally(self, context: dict, *args, **kwargs):
+        browser = context['browser']
+        browser.close()
+        browser.quit()
