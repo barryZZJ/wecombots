@@ -128,7 +128,7 @@ class YuyunChecker(BaseChecker):
 
         try:
             msg, res = checkin(browser, wait)
-            if res != -1:
+            if res == -1:
                 raise CheckError('第二步签到失败', msg)
         except Exception as err:
             content = str(type(err).__name__) + '\n' + str(err)
