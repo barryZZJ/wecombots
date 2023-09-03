@@ -1,6 +1,8 @@
 import abc
 import time
 
+from loguru import logger
+
 from util import report
 
 
@@ -36,6 +38,7 @@ class BaseChecker:
                 report(title)
                 break
             except CheckError as err:
+                logger.error(err)
                 title = f"{self.name}：{str(err)}！" + ("finished" if i == 0 else ('remain: ' + str(i - 1)))
                 if err.detail:
                     report(title, err.detail)
@@ -44,6 +47,7 @@ class BaseChecker:
                 if i != 0:
                     time.sleep(self.timeout)
             except Exception as err:
+                logger.error(err)
                 title = f"{self.name}：签到失败！" + ("finished" if i == 0 else ('remain: ' + str(i - 1)))
                 content = str(type(err).__name__ + '\n' + str(err))
                 report(title, content)

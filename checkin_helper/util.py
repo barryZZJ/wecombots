@@ -1,10 +1,11 @@
 import wecomsan
+from loguru import logger
 
 from config import load_conf
 
 
 def report(title, content=None):
-    print('title:', title, '\ncontent:', content)
+    logger.info('title: {}\ncontent: {}', title, content)
     if content is not None:
         msg = f'{title=}\n{content=}'
     else:
