@@ -42,7 +42,7 @@ template = {
     'testcookie': '1',
 }
 
-OPERATOR_TABLE = str.maketrans('+−', '+-')
+OPERATOR_TABLE = str.maketrans('+−×', '+-*')
 
 def fuck_captcha() -> str:
     resp = c.get(URL.login)
@@ -59,12 +59,15 @@ def fuck_captcha() -> str:
     lhs, rhs = map(eval, equationstr.split('='))
     equation = Eq(lhs, rhs)
     solution = solveset(equation, x)
+    print(str(solution.args[0]))
     return str(solution.args[0])
 
 def login():
     RETRY = 2
     TIMEOUT = 2
     data = template.copy()
+    # get WordPress cookie, otherwise can't do post.
+    c.get(URL.login)
     data['mc-value'] = fuck_captcha()
     # print(data['captcha'])
     for _ in range(RETRY):
