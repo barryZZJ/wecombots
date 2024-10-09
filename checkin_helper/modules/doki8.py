@@ -42,7 +42,7 @@ template = {
     'testcookie': '1',
 }
 
-OPERATOR_TABLE = str.maketrans('+−×', '+-*')
+OPERATOR_TABLE = str.maketrans('+−×÷', '+-*/')
 
 def fuck_captcha() -> str:
     resp = c.get(URL.login)
