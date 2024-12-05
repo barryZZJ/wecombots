@@ -13,11 +13,12 @@ class CheckError(BaseException):
 
 
 class BaseChecker:
-    def __init__(self, name: str, retry: int = 3, timeout: int = 60):
+    def __init__(self, name: str, retry: int = 3, timeout: int = 60, conf: dict = None):
         self.name = name
         self.retry = retry
         self.timeout = timeout
         self.context = {}
+        self.conf = conf or {}
 
     def _prepare(self, context: dict, *args, **kwargs):
         ...
