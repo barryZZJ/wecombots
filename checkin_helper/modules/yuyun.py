@@ -58,7 +58,7 @@ def initbrowser():
 def login(browser, wait):
     # 登陆
     browser.get(url_login)
-    print(browser.page_source)
+    # print(browser.page_source)
     ele_usr = wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, "input[type='text']"))
     ele_pss = browser.find_element(By.CSS_SELECTOR, "input[type='password']")
     # ele_rem = browser.find_element(By.CSS_SELECTOR, "#remember-me+label")
@@ -130,6 +130,7 @@ class YuyunChecker(BaseChecker):
             msg, res = checkin(browser, wait)
             if res == -1:
                 raise CheckError('第二步签到失败', msg)
+            return msg
         except Exception as err:
             content = str(type(err).__name__) + '\n' + str(err)
             raise CheckError('第二步签到失败', content)

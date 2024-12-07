@@ -40,8 +40,8 @@ class NssctfChecker(BaseChecker):
             js = resp.json()
         except r.JSONDecodeError:
             raise CheckError('json解析失败', resp.text)
-        if js['code'] == 200 and js['data'] == 1:
-            msg = '签到成功！'
+        if js['code'] == 200:
+            msg = '签到成功！已连续签到' + js['data'] + '天'
             res = 0
         elif js['code'] == 201:
             msg = '已签到过'
@@ -55,6 +55,7 @@ class NssctfChecker(BaseChecker):
         loguru.logger.info(msg)
         if res == -1:
             raise CheckError('签到失败', msg)
+        return msg
 
     def _finally(self, context: dict, *args, **kwargs):
         self.s.close()

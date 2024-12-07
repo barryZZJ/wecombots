@@ -27,16 +27,16 @@ class BaseChecker:
         ...
 
     @abc.abstractmethod
-    def _check(self, context: dict, *args, **kwargs):
+    def _check(self, context: dict, *args, **kwargs) -> str:
         ...
 
     def run(self):
-        self._prepare(self.context)
         for i in range(self.retry, 0, -1):
             try:
-                self._check(self.context)
-                title = f'{self.name}：签到成功'
-                report(title)
+                self._prepare(self.context)
+                detail = self._check(self.context)
+                title = f'{self.name}：'
+                report(title, detail)
                 break
             except CheckError as err:
                 logger.error(err)
