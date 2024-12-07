@@ -1,0 +1,22 @@
+{
+	"bot": {
+		"cid": "xx",
+		"aid": "xx",
+		"secret": "xx"
+	},
+	"debug": "",
+	"module": {
+		"doki8": false,
+		"yuyun": true,
+		"nssctf": true,
+		"ctfhub": true
+	},
+	"nssctf": {
+		"username": "xx",
+		"password": "xx"
+	},
+	"ctfhub": {
+		"username": "xx",
+		"password": "xx"
+	}
+}

@@ -3,7 +3,7 @@ import asyncio
 
 from loguru import logger
 from checker import BaseChecker
-from modules import Doki8Checker, YuyunChecker, NssctfChecker
+from modules import Doki8Checker, YuyunChecker, NssctfChecker, CtfhubChecker
 from config import load_conf
 
 ROOT = Path(__file__).parent
@@ -36,4 +36,6 @@ if __name__ == '__main__':
         tasks.append(loop.create_task(run_checker(YuyunChecker(3, 60))))
     if switches.get('nssctf'):
         tasks.append(loop.create_task(run_checker(NssctfChecker(3, 60, conf['nssctf']))))
+    if switches.get('ctfhub'):
+        tasks.append(loop.create_task(run_checker(CtfhubChecker(3, 60, conf['ctfhub']))))
     loop.run_until_complete(main(tasks))
