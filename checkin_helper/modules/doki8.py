@@ -33,14 +33,6 @@ c = httpx.Client(
 )
 
 
-template = {
-    'log': 'bazinga123',
-    'pwd': 'zzjzzj0123',
-    'mc-value': '',
-    'wp-submit': '登录',
-    'redirect_to': 'http://www.doki8.com/members/bazinga123/pointhistory/?loggedout=true',
-    'testcookie': '1',
-}
 
 OPERATOR_TABLE = str.maketrans('+−×÷', '+-*/')
 
@@ -62,35 +54,43 @@ def fuck_captcha() -> str:
     print(str(solution.args[0]))
     return str(solution.args[0])
 
-def login():
-    RETRY = 2
-    TIMEOUT = 2
-    data = template.copy()
-    # get WordPress cookie, otherwise can't do post.
-    c.get(URL.login)
-    data['mc-value'] = fuck_captcha()
-    # print(data['captcha'])
-    for _ in range(RETRY):
-        resp = c.post(URL.login, data=data)
-        # print(resp.text)
-        if resp.has_redirect_location or resp.status_code == 302:
-            return True
-        parsed = BeautifulSoup(resp.text, 'html.parser')
-        if res := parsed.find(id='login_error'):
-            if 'captcha' in res.text.strip().lower():
-                print('wrong captcha, retrying...')
-                time.sleep(TIMEOUT)
-                data['captcha'] = fuck_captcha()
-                continue
-            raise AuthError(res.decode_contents().strip())
-        raise AuthError('Unexpected error: ' + str(res))
-    raise AuthError('wrong captcha for ' + str(RETRY) + ' times!')
-
 
 class Doki8Checker(BaseChecker):
-    def __init__(self, retry: int = 3, timeout: int = 60):
-        super().__init__('心动日剧', retry, timeout)
+    def __init__(self, retry: int = 3, timeout: int = 60, conf: dict = None):
+        super().__init__('心动日剧', retry, timeout, conf)
+
+    def login(self):
+        template = {
+            'log': self.conf['username'],
+            'pwd': self.conf['password'],
+            'mc-value': '',
+            'wp-submit': '登录',
+            'redirect_to': 'http://www.doki8.com/members/bazinga123/pointhistory/?loggedout=true',
+            'testcookie': '1',
+        }
+        RETRY = 2
+        TIMEOUT = 2
+        data = template.copy()
+        # get WordPress cookie, otherwise can't do post.
+        c.get(URL.login)
+        data['mc-value'] = fuck_captcha()
+        # print(data['captcha'])
+        for _ in range(RETRY):
+            resp = c.post(URL.login, data=data)
+            # print(resp.text)
+            if resp.has_redirect_location or resp.status_code == 302:
+                return True
+            parsed = BeautifulSoup(resp.text, 'html.parser')
+            if res := parsed.find(id='login_error'):
+                if 'captcha' in res.text.strip().lower():
+                    print('wrong captcha, retrying...')
+                    time.sleep(TIMEOUT)
+                    data['captcha'] = fuck_captcha()
+                    continue
+                raise AuthError(res.decode_contents().strip())
+            raise AuthError('Unexpected error: ' + str(res))
+        raise AuthError('wrong captcha for ' + str(RETRY) + ' times!')
 
     def _check(self, *args, **kwargs):
-        login()
+        self.login()
 

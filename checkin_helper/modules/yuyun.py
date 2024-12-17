@@ -13,8 +13,6 @@ from checker import BaseChecker, CheckError
 
 url_login = 'https://app.rainyun.com/auth/login'
 url_points = 'https://app.rainyun.com/account/reward/earn'
-USER = 'barry'
-PASS = 'zzjzzj0123'
 
 
 # KEY = 'SCT164400THDN7R51ck5uOz8H3MAhIejfR'
@@ -55,21 +53,6 @@ def initbrowser():
     return browser, wait
 
 
-def login(browser, wait):
-    # 登陆
-    browser.get(url_login)
-    # print(browser.page_source)
-    ele_usr = wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, "input[type='text']"))
-    ele_pss = browser.find_element(By.CSS_SELECTOR, "input[type='password']")
-    # ele_rem = browser.find_element(By.CSS_SELECTOR, "#remember-me+label")
-    ele_sub = browser.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
-    ele_usr.send_keys(USER)
-    ele_pss.send_keys(PASS)
-    # ele_rem.click()
-    ele_sub.click()
-    wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
-
-
 def checkin(browser, wait):
     # 打卡
     res = -1
@@ -108,8 +91,22 @@ def checkin(browser, wait):
 
 
 class YuyunChecker(BaseChecker):
-    def __init__(self, retry: int = 3, timeout: int = 60):
-        super().__init__('雨云', retry, timeout)
+    def __init__(self, retry: int = 3, timeout: int = 60, conf: dict = None):
+        super().__init__('雨云', retry, timeout, conf)
+
+    def login(self, browser, wait):
+        # 登陆
+        browser.get(url_login)
+        # print(browser.page_source)
+        ele_usr = wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, "input[type='text']"))
+        ele_pss = browser.find_element(By.CSS_SELECTOR, "input[type='password']")
+        # ele_rem = browser.find_element(By.CSS_SELECTOR, "#remember-me+label")
+        ele_sub = browser.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
+        ele_usr.send_keys(self.conf['username'])
+        ele_pss.send_keys(self.conf['password'])
+        # ele_rem.click()
+        ele_sub.click()
+        wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
 
     def _prepare(self, context: dict, *args, **kwargs):
         browser, wait = initbrowser()
@@ -122,7 +119,7 @@ class YuyunChecker(BaseChecker):
         browser = context['browser']
         wait = context['wait']
         try:
-            login(browser, wait)
+            self.login(browser, wait)
         except Exception as err:
             raise CheckError('第一步登录失败！', str(err))
 
