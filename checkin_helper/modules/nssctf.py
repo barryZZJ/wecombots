@@ -41,7 +41,7 @@ class NssctfChecker(BaseChecker):
         except r.JSONDecodeError:
             raise CheckError('json解析失败', resp.text)
         if js['code'] == 200:
-            msg = '签到成功！已连续签到' + js['data'] + '天'
+            msg = f"签到成功！已连续签到{js['data']}天"
             res = 0
         elif js['code'] == 201:
             msg = '已签到过'

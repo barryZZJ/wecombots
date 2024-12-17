@@ -35,14 +35,14 @@ class BaseChecker:
             try:
                 self._prepare(self.context)
                 detail = self._check(self.context)
-                title = f'{self.name}：'
+                title = f'{self.name}'
                 report(title, detail)
                 break
             except CheckError as err:
                 logger.error(err)
                 title = f"{self.name}：{str(err)}！" + ("finished" if i == 0 else ('remain: ' + str(i - 1)))
                 if err.detail:
-                    report(title, err.detail)
+                    report(title, err.detail, self.conf['url'])
                 else:
                     report(title)
                 if i != 0:

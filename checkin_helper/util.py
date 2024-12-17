@@ -4,11 +4,12 @@ from loguru import logger
 from config import load_conf
 
 
-def report(title, content=None):
+def report(title, content=None, url=None):
     logger.info('title: {}\ncontent: {}', title, content)
     conf = load_conf()
     bot = wecomsan.WecomSan(**conf['bot'])
     if content is not None:
-        bot.send_textcard(title, content, 'http://myflaskserver.barryzzj.top:23354/test')
+        url = url or 'http://myflaskserver.barryzzj.top:23354/test'
+        bot.send_textcard(title, content, url)
     else:
         bot.send(title)
