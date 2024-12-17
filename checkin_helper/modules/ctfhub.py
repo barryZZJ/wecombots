@@ -43,13 +43,16 @@ class CtfhubChecker(BaseChecker):
                 return pixel
         return 255
 
-    def preprocess_img(self, img: Image.Image):
+    def preprocess_img(self, img: Image.Image, aa=True):
         """发现验证码文字大部分都是白色的，所以根据直方图寻找阈值，据此进行二值化"""
         img = img.convert('L')  # 灰度化
         hist = img.histogram()
         total_pixels = img.size[0] * img.size[1]
         t = 255 - self.get_threshold(hist[::-1], total_pixels, 0.05)
         img = img.point(lambda x: 0 if x < t else 255)  # 二值化
+        if aa:
+            img = img.resize((img.width * 2, img.height * 2), Image.Resampling.LANCZOS)
+            img = img.resize((img.width // 2, img.height // 2), Image.Resampling.LANCZOS)
         return img
 
     def _prepare(self, context: dict, *args, **kwargs):
@@ -58,9 +61,13 @@ class CtfhubChecker(BaseChecker):
             'Authorization': 'ctfhub_sessid='+self.s.cookies['ctfhub_sessid']
         })
         from utils.fuckcaptcha import fuckcaptcha
-        captcha_img = self.get_capthca()
-        captcha_img = self.preprocess_img(captcha_img)
-        captcha = fuckcaptcha(captcha_img)
+        while True:
+            captcha_img = self.get_capthca()
+            captcha_img = self.preprocess_img(captcha_img)
+            captcha = fuckcaptcha(captcha_img)
+            if len(captcha) == 4:
+                break
+            time.sleep(0.1)
         credential = {
             'account': self.conf['username'],
             'password': md5(self.conf['password']),
@@ -99,3 +106,27 @@ class CtfhubChecker(BaseChecker):
 
     def _finally(self, context: dict, *args, **kwargs):
         self.s.close()
+
+if __name__ == '__main__':
+    import time
+    from config import load_conf
+    from utils.fuckcaptcha import fuckcaptcha
+    conf = load_conf()
+
+    checker = CtfhubChecker(3, 60, conf['ctfhub'])
+
+    for _ in range(10):
+        while True:
+            captcha_img = checker.get_capthca()
+            captcha_img = checker.preprocess_img(captcha_img, False)
+            captcha_img_aa = checker.preprocess_img(captcha_img, True)
+            captcha = fuckcaptcha(captcha_img)
+            captcha_aa = fuckcaptcha(captcha_img_aa)
+            if len(captcha) == 4 or len(captcha_aa) == 4:
+                break
+            time.sleep(0.1)
+        with open(f'LANCZOS/{_}.{captcha}.png', 'wb') as f:
+            captcha_img.save(f, format='png')
+        with open(f'LANCZOS/{_}.AA_{captcha_aa}.png', 'wb') as f:
+            captcha_img_aa.save(f, format='png')
+        time.sleep(0.1)
