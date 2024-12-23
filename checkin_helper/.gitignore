@@ -1,0 +1,3 @@
+*.json
+!config_template.json
+log
