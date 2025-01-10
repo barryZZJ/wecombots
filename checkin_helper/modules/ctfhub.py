@@ -1,9 +1,9 @@
-import itertools
+import time
 
 import loguru
 import requests as r
 from PIL import Image
-
+from utils.fuckcaptcha import init_ocr, get_threshold_color, fuckcaptcha, dataurl_to_img
 from checker import BaseChecker, CheckError
 from utils.hashing import md5
 
@@ -22,9 +22,10 @@ class CtfhubChecker(BaseChecker):
             'Referer': 'https://www.ctfhub.com/',
             'Origin': 'https://www.ctfhub.com/',
         })
+        for key, val in self.conf['cookies'].items():
+            self.s.cookies.set(key, val.encode('unicode_escape').decode('utf8'))
 
     def get_capthca(self) -> Image.Image:
-        from utils.fuckcaptcha import dataurl_to_img
         resp = self.s.post(url_captcha, data='{}', verify=False)
         try:
             js = resp.json()
@@ -36,19 +37,11 @@ class CtfhubChecker(BaseChecker):
         img = dataurl_to_img(dataurl)
         return img
 
-    @staticmethod
-    def get_threshold(hist, total_pixels, percent):
-        for pixel, cum_count in enumerate(itertools.accumulate(hist)):
-            if cum_count >= total_pixels * percent:
-                return pixel
-        return 255
-
     def preprocess_img(self, img: Image.Image, aa=True):
         """发现验证码文字大部分都是白色的，所以根据直方图寻找阈值，据此进行二值化"""
         img = img.convert('L')  # 灰度化
-        hist = img.histogram()
         total_pixels = img.size[0] * img.size[1]
-        t = 255 - self.get_threshold(hist[::-1], total_pixels, 0.05)
+        t = get_threshold_color(img, total_pixels, 0.05, reverse=True)
         img = img.point(lambda x: 0 if x < t else 255)  # 二值化
         if aa:
             img = img.resize((img.width * 2, img.height * 2), Image.Resampling.LANCZOS)
@@ -56,31 +49,32 @@ class CtfhubChecker(BaseChecker):
         return img
 
     def _prepare(self, context: dict, *args, **kwargs):
-        self.s.post(url_getcookie, verify=False)  # get session id
+        # self.s.post(url_getcookie, verify=False)  # get session id
         self.s.headers.update({
-            'Authorization': 'ctfhub_sessid='+self.s.cookies['ctfhub_sessid']
+            # 'Authorization': 'ctfhub_sessid='+self.s.cookies['ctfhub_sessid']
+            'Authorization': 'ctfhub_sessid='+self.conf['ctfhub_sessid']
         })
-        from utils.fuckcaptcha import fuckcaptcha
-        while True:
-            captcha_img = self.get_capthca()
-            captcha_img = self.preprocess_img(captcha_img)
-            captcha = fuckcaptcha(captcha_img)
-            if len(captcha) == 4:
-                break
-            time.sleep(0.1)
-        credential = {
-            'account': self.conf['username'],
-            'password': md5(self.conf['password']),
-            'remember_me': True,
-            'captcha': captcha
-        }
-        resp = self.s.post(url_login, json=credential, verify=False)
-        try:
-            js = resp.json()
-        except r.JSONDecodeError:
-            raise CheckError('json解析失败', resp.text)
-        if not js['status']:
-            raise CheckError('登录失败', js['msg'])
+        # init_ocr()
+        # while True:
+        #     captcha_img = self.get_capthca()
+        #     captcha_img = self.preprocess_img(captcha_img)
+        #     captcha = fuckcaptcha(captcha_img)
+        #     if len(captcha) == 4:
+        #         break
+        #     time.sleep(0.1)
+        # credential = {
+        #     'account': self.conf['username'],
+        #     'password': md5(self.conf['password']),
+        #     'remember_me': True,
+        #     'captcha': captcha
+        # }
+        # resp = self.s.post(url_login, json=credential, verify=False)
+        # try:
+        #     js = resp.json()
+        # except r.JSONDecodeError:
+        #     raise CheckError('json解析失败', resp.text)
+        # if not js['status']:
+        #     raise CheckError('登录失败', js['msg'])
 
     def _check(self, context: dict, *args, **kwargs):
         resp = self.s.post(url_checkin, data='{}', verify=False)
@@ -108,25 +102,26 @@ class CtfhubChecker(BaseChecker):
         self.s.close()
 
 if __name__ == '__main__':
-    import time
-    from config import load_conf
-    from utils.fuckcaptcha import fuckcaptcha
-    conf = load_conf()
-
-    checker = CtfhubChecker(3, 60, conf['ctfhub'])
-
-    for _ in range(10):
-        while True:
-            captcha_img = checker.get_capthca()
-            captcha_img = checker.preprocess_img(captcha_img, False)
-            captcha_img_aa = checker.preprocess_img(captcha_img, True)
-            captcha = fuckcaptcha(captcha_img)
-            captcha_aa = fuckcaptcha(captcha_img_aa)
-            if len(captcha) == 4 or len(captcha_aa) == 4:
-                break
-            time.sleep(0.1)
-        with open(f'LANCZOS/{_}.{captcha}.png', 'wb') as f:
-            captcha_img.save(f, format='png')
-        with open(f'LANCZOS/{_}.AA_{captcha_aa}.png', 'wb') as f:
-            captcha_img_aa.save(f, format='png')
-        time.sleep(0.1)
+    pass
+    # import time
+    # from config import load_conf
+    # from utils.fuckcaptcha import fuckcaptcha
+    # conf = load_conf()
+    #
+    # checker = CtfhubChecker(3, 60, conf['ctfhub'])
+    #
+    # for _ in range(10):
+    #     while True:
+    #         captcha_img = checker.get_capthca()
+    #         captcha_img = checker.preprocess_img(captcha_img, False)
+    #         captcha_img_aa = checker.preprocess_img(captcha_img, True)
+    #         captcha = fuckcaptcha(captcha_img)
+    #         captcha_aa = fuckcaptcha(captcha_img_aa)
+    #         if len(captcha) == 4 or len(captcha_aa) == 4:
+    #             break
+    #         time.sleep(0.1)
+    #     with open(f'LANCZOS/{_}.{captcha}.png', 'wb') as f:
+    #         captcha_img.save(f, format='png')
+    #     with open(f'LANCZOS/{_}.AA_{captcha_aa}.png', 'wb') as f:
+    #         captcha_img_aa.save(f, format='png')
+    #     time.sleep(0.1)

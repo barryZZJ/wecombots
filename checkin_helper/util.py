@@ -5,7 +5,7 @@ from config import load_conf
 
 
 def report(title, content=None, url=None):
-    logger.info('title: {}\ncontent: {}', title, content)
+    logger.info('report:\n{}\n{}', title, content)
     conf = load_conf()
     bot = wecomsan.WecomSan(**conf['bot'])
     if content is not None:

@@ -84,7 +84,7 @@ def checkin(browser, wait):
             msg = '签到成功！'
             res = 0
         else:
-            msg = '点击按钮后出现未预料结果'
+            msg = '点击签到按钮后出现未预料结果'
     else:
         msg = '未知按钮名：' + ele_checkin.text
     return msg, res

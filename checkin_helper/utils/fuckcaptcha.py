@@ -5,7 +5,11 @@ import ddddocr
 import base64
 from PIL import Image
 
-ocr = ddddocr.DdddOcr()
+ocr: ddddocr.DdddOcr = None
+
+def init_ocr():
+    global ocr
+    ocr = ddddocr.DdddOcr()
 
 def fuckcaptcha(img: str|bytes|Image.Image, char_range: int|str=6) -> str:
     if char_range is not None:
@@ -24,6 +28,23 @@ def dataurl_to_img(data_url):
     img = Image.open(BytesIO(img_bytes))
     return img
 
+def get_threshold_color(img: Image.Image, total_pixels, percent, reverse=False) -> int:
+    """
+    Get top n% darkest pixels' color threshold.
+    0 represents black, and 255 represents white.
+    If reverse=True, get top n% lightest pixels' color threshold.
+    :return: threshold pixel color
+    """
+    colors = img.getcolors()
+    if reverse:
+        colors = colors[::-1]
+    cumsum = 0
+    for color, count in colors:
+        cumsum += count
+        if cumsum >= total_pixels * percent:
+            return color
+    return colors[-1][0]
+
 if __name__ == '__main__':
-    img = Image.open(r'E:\Coding2\PyProjects\wecombots\checkin_helper\modules\captcha/auT.png')
+    img = Image.open(r"C:\Users\85046\Desktop\16-25-25.png")
     print(fuckcaptcha(img))
