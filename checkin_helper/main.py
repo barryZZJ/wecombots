@@ -3,7 +3,7 @@ from pathlib import Path
 
 from loguru import logger
 from checker import BaseChecker
-from modules import Doki8Checker, YuyunChecker, NssctfChecker, CtfhubChecker
+from modules import Doki8Checker, YuyunCheckerV2, NssctfChecker, CtfhubChecker
 from config import load_conf
 
 ROOT = Path(__file__).parent
@@ -26,7 +26,7 @@ if __name__ == '__main__':
         if switches.get('doki8'):
             futs.append(executor.submit(run_checker, Doki8Checker(3, 60, conf['doki8'])))
         if switches.get('yuyun'):
-            futs.append(executor.submit(run_checker, YuyunChecker(3, 60, conf['yuyun'])))
+            futs.append(executor.submit(run_checker, YuyunCheckerV2(3, 60, conf['yuyun'])))
         if switches.get('nssctf'):
             futs.append(executor.submit(run_checker, NssctfChecker(3, 60, conf['nssctf'])))
         if switches.get('ctfhub'):
