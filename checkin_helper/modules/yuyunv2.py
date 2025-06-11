@@ -1,10 +1,11 @@
+import contextlib
 import time
 from io import BytesIO
 
 import loguru
 from PIL import Image
 from selenium import webdriver
-from selenium.common import NoSuchElementException
+from selenium.common import NoSuchElementException, TimeoutException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
@@ -47,7 +48,7 @@ def initbrowser():
     opt = webdriver.ChromeOptions()
     opt.add_argument(
         'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36')
-    opt.add_argument('--headless')  # 无界面
+    # opt.add_argument('--headless')  # 无界面
     opt.add_argument('--no-sandbox')
     opt.add_argument('--disable-dev-shm-usage')
 
@@ -58,6 +59,12 @@ def initbrowser():
     wait = WebDriverWait(browser, 10)
     return browser, wait
 
+@contextlib.contextmanager
+def iframe_switch(browser, wait, iframe_id: str):
+    iframe_captcha = wait.until(lambda browser: browser.find_element(By.ID, iframe_id))
+    browser.switch_to.frame(iframe_captcha)
+    yield
+    browser.switch_to.default_content()
 
 def merge_images(bg, char):
     bg_image = Image.open(BytesIO(bg))
@@ -164,21 +171,23 @@ class YuyunCheckerV2(BaseChecker):
         # from OrderClickCaptchaSolver.utils.utils import draw_img
         for _ in range(retry):
             # switch to captcha iframe
-            iframe_captcha = self.wait.until(lambda browser: browser.find_element(By.ID, 'tcaptcha_iframe_dy'))
-            self.browser.switch_to.frame(iframe_captcha)
-            ele_bg, ele_char, ele_confirm, captcha = self.find_captcha()
-            xyxys = fuck_orderclick_captcha(captcha)
-            loguru.logger.debug('solve_captcha xyxys: ' + str(xyxys))
-            # captcha.save('captcha.jpg')
-            # draw_img('captcha.jpg', xyxys, 'res.jpg')
-            self.solve_captcha(ele_bg, xyxys, ele_confirm)
-            self.browser.switch_to.default_content()
+            with iframe_switch(self.browser, self.wait, 'tcaptcha_iframe_dy'):
+                ele_bg, ele_char, ele_confirm, captcha = self.find_captcha()
+                xyxys = fuck_orderclick_captcha(captcha)
+                loguru.logger.debug('solve_captcha xyxys: ' + str(xyxys))
+                # captcha.save('captcha.jpg')
+                # draw_img('captcha.jpg', xyxys, 'res.jpg')
+                self.solve_captcha(ele_bg, xyxys, ele_confirm)
             try:
-                self.browser.find_element(By.ID, 't_mask')
-            except NoSuchElementException:
+                WebDriverWait(self.browser, 10, 5, ignored_exceptions=[NoSuchElementException]) \
+                    .until_not(lambda browser: browser.find_element(By.ID, 't_mask'))
                 # solve captcha success
                 return True
-            self.reload_captcha(ele_bg)
+            except TimeoutException:
+                loguru.logger.debug('solve captcha failed, reloading...')
+                with iframe_switch(self.browser, self.wait, 'tcaptcha_iframe_dy'):
+                    self.reload_captcha(ele_bg)
+            pass
         return False
 
     def _prepare(self, context: dict, *args, **kwargs):
