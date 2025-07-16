@@ -1,6 +1,8 @@
 import contextlib
+import os.path
 import time
 from io import BytesIO
+import json
 
 import loguru
 from PIL import Image
@@ -19,8 +21,9 @@ from OrderClickCaptchaSolver.fuckorderclickcaptcha import fuck_orderclick_captch
 # 0 10 * * * python3 ~/yuyuncheckin/main.py
 
 url_login = 'https://app.rainyun.com/auth/login'
+url_dashboard = 'https://app.rainyun.com/dashboard'
 url_points = 'https://app.rainyun.com/account/reward/earn'
-
+COOKIE_PATH = os.path.join(os.path.dirname(__file__), 'cookies.json')
 
 # KEY = 'SCT164400THDN7R51ck5uOz8H3MAhIejfR'
 
@@ -48,7 +51,7 @@ def initbrowser():
     opt = webdriver.ChromeOptions()
     opt.add_argument(
         'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36')
-    # opt.add_argument('--headless')  # 无界面
+    opt.add_argument('--headless')  # 无界面
     opt.add_argument('--no-sandbox')
     opt.add_argument('--disable-dev-shm-usage')
 
@@ -56,7 +59,7 @@ def initbrowser():
     proxycap = None
     browser = webdriver.Chrome(options=opt, desired_capabilities=proxycap)
     browser.implicitly_wait(30)
-    wait = WebDriverWait(browser, 10)
+    wait = WebDriverWait(browser, 30)
     return browser, wait
 
 @contextlib.contextmanager
@@ -77,6 +80,26 @@ def merge_images(bg, char):
 
     return merged
 
+def save_cookies(browser: webdriver.Chrome, path: str):
+    cookies = browser.get_cookies()
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(cookies, f, ensure_ascii=False, indent=4)
+
+
+def load_cookies(browser: webdriver.Chrome, path: str):
+    if not os.path.exists(path):
+        loguru.logger.warning(f"Cookie file {path} does not exist.")
+        return False
+    with open(path, 'r', encoding='utf-8') as f:
+        cookies = json.load(f)
+    for cookie in cookies:
+        # Ensure the cookie has the necessary attributes
+        if 'name' in cookie and 'value' in cookie:
+            # Add the cookie to the browser
+            browser.add_cookie(cookie)
+        else:
+            loguru.logger.warning(f"Skipping invalid cookie: {cookie}")
+    return True
 
 class YuyunCheckerV2(BaseChecker):
     def __init__(self, retry: int = 3, timeout: int = 60, conf: dict = None):
@@ -85,16 +108,38 @@ class YuyunCheckerV2(BaseChecker):
     def login(self):
         # 登陆
         self.browser.get(url_login)
-        # print(browser.page_source)
-        ele_usr = self.wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, "input[type='text']"))
-        ele_pss = self.browser.find_element(By.CSS_SELECTOR, "input[type='password']")
-        # ele_rem = browser.find_element(By.CSS_SELECTOR, "#remember-me+label")
-        ele_sub = self.browser.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
-        ele_usr.send_keys(self.conf['username'])
-        ele_pss.send_keys(self.conf['password'])
-        # ele_rem.click()
-        ele_sub.click()
-        self.wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
+        load_cookies(self.browser, COOKIE_PATH)
+        self.browser.get(url_dashboard)
+        # print(self.browser.page_source)
+        # print(self.browser.current_url)
+        try:
+            # cookie 登录
+            self.wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
+            loguru.logger.info('Cookie登录成功')
+            return
+        except TimeoutException:
+            loguru.logger.warning('Cookie未登录或已过期，重新登录')
+        self.browser.save_screenshot(os.path.abspath(os.path.join(os.path.dirname(__file__), '../cookie_failed.png')))
+        try:
+            # print(browser.page_source)
+            ele_usr = self.wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, "input[type='text']"))
+            ele_pss = self.browser.find_element(By.CSS_SELECTOR, "input[type='password']")
+            # ele_rem = browser.find_element(By.CSS_SELECTOR, "#remember-me+label")
+            ele_sub = self.browser.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
+            ele_usr.send_keys(self.conf['username'])
+            self.wait.until(lambda browser: ele_usr.get_attribute('value') == self.conf['username'])  # 等待输入框填入用户名
+            ele_pss.send_keys(self.conf['password'])
+            self.wait.until(lambda browser: ele_pss.get_attribute('value') == self.conf['password'])
+            time.sleep(1)
+            # ele_rem.click()
+            ele_sub.click()
+            self.wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
+            save_cookies(self.browser, COOKIE_PATH)
+        except TimeoutException:
+            screenshot_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../login_fail.png'))
+            self.browser.save_screenshot(screenshot_path)
+            loguru.logger.error('登录失败，已保存截图到：' + screenshot_path)
+            raise
 
     def checkin(self):
         # 打卡
@@ -108,8 +153,8 @@ class YuyunCheckerV2(BaseChecker):
             res = 1
         elif ele_checkin.text == '领取奖励':
             ele_checkin.click()
-            retry = 2
-            if not self.try_solve_captcha(retry):
+            # retry = 3
+            if not self.try_solve_captcha():
                 msg = '验证码验证失败'
                 return msg, res
             ele_checkin = self.find_ele_checkin()
@@ -138,7 +183,7 @@ class YuyunCheckerV2(BaseChecker):
     def find_captcha(self):
         # make sure called in captcha iframe
         ele_bg: WebElement = self.browser.find_element(By.ID, 'slideBg')
-        url = self.wait.until(lambda browser: browser.execute_script("return window.getComputedStyle(arguments[0]).backgroundImage;", ele_bg) != 'none')
+        url = WebDriverWait(self.browser, 30, 5).until(lambda browser: browser.execute_script("return window.getComputedStyle(arguments[0]).backgroundImage;", ele_bg) != 'none')
         time.sleep(1)
         ele_char: WebElement = self.browser.find_element(By.CSS_SELECTOR, '#instruction img')
         ele_confirm: WebElement = self.browser.find_element(By.CSS_SELECTOR, '#tcStatus div[role="button"]')
@@ -167,10 +212,10 @@ class YuyunCheckerV2(BaseChecker):
             lambda browser: self.browser.execute_script("return window.getComputedStyle(arguments[0]).backgroundImage;",
                                                         ele_bg) != old_bg_url)
 
-    def try_solve_captcha(self, retry):
+    def try_solve_captcha(self):
         # from OrderClickCaptchaSolver.utils.utils import draw_img
-        for _ in range(retry):
-            # switch to captcha iframe
+        # switch to captcha iframe
+        try:
             with iframe_switch(self.browser, self.wait, 'tcaptcha_iframe_dy'):
                 ele_bg, ele_char, ele_confirm, captcha = self.find_captcha()
                 xyxys = fuck_orderclick_captcha(captcha)
@@ -178,16 +223,14 @@ class YuyunCheckerV2(BaseChecker):
                 # captcha.save('captcha.jpg')
                 # draw_img('captcha.jpg', xyxys, 'res.jpg')
                 self.solve_captcha(ele_bg, xyxys, ele_confirm)
-            try:
-                WebDriverWait(self.browser, 10, 5, ignored_exceptions=[NoSuchElementException]) \
-                    .until_not(lambda browser: browser.find_element(By.ID, 't_mask'))
-                # solve captcha success
-                return True
-            except TimeoutException:
-                loguru.logger.debug('solve captcha failed, reloading...')
-                with iframe_switch(self.browser, self.wait, 'tcaptcha_iframe_dy'):
-                    self.reload_captcha(ele_bg)
-            pass
+            WebDriverWait(self.browser, 10, 5, ignored_exceptions=[NoSuchElementException]) \
+                .until_not(lambda browser: browser.find_element(By.ID, 't_mask'))
+            # solve captcha success
+            return True
+        except TimeoutException:
+            loguru.logger.debug('solve captcha failed')
+            with iframe_switch(self.browser, self.wait, 'tcaptcha_iframe_dy'):
+                self.reload_captcha(ele_bg)
         return False
 
     def _prepare(self, context: dict, *args, **kwargs):
