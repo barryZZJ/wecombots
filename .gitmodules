@@ -1,0 +1,3 @@
+[submodule "freshrsscrawler"]
+	path = freshrsscrawler
+	url = https://github.com/barryZZJ/freshrsscrawler
