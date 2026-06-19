@@ -5,11 +5,7 @@ import ddddocr
 import base64
 from PIL import Image
 
-ocr: ddddocr.DdddOcr = None
-
-def init_ocr():
-    global ocr
-    ocr = ddddocr.DdddOcr()
+ocr = ddddocr.DdddOcr()
 
 def fuckcaptcha(img: str|bytes|Image.Image, char_range: int|str=6) -> str:
     if char_range is not None:

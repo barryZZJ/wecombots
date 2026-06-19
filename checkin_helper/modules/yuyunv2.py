@@ -55,9 +55,10 @@ def initbrowser():
     opt.add_argument('--no-sandbox')
     opt.add_argument('--disable-dev-shm-usage')
 
-    proxycap = genProxyCap()
-    proxycap = None
-    browser = webdriver.Chrome(options=opt, desired_capabilities=proxycap)
+    # proxycap = genProxyCap()
+    # proxycap = None
+    # browser = webdriver.Chrome(options=opt, desired_capabilities=proxycap)
+    browser = webdriver.Chrome(options=opt)
     browser.implicitly_wait(30)
     wait = WebDriverWait(browser, 30)
     return browser, wait
@@ -108,38 +109,33 @@ class YuyunCheckerV2(BaseChecker):
     def login(self):
         # 登陆
         self.browser.get(url_login)
-        load_cookies(self.browser, COOKIE_PATH)
-        self.browser.get(url_dashboard)
-        # print(self.browser.page_source)
-        # print(self.browser.current_url)
-        try:
-            # cookie 登录
-            self.wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
-            loguru.logger.info('Cookie登录成功')
-            return
-        except TimeoutException:
-            loguru.logger.warning('Cookie未登录或已过期，重新登录')
-        self.browser.save_screenshot(os.path.abspath(os.path.join(os.path.dirname(__file__), '../cookie_failed.png')))
-        try:
-            # print(browser.page_source)
-            ele_usr = self.wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, "input[type='text']"))
-            ele_pss = self.browser.find_element(By.CSS_SELECTOR, "input[type='password']")
-            # ele_rem = browser.find_element(By.CSS_SELECTOR, "#remember-me+label")
-            ele_sub = self.browser.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
-            ele_usr.send_keys(self.conf['username'])
-            self.wait.until(lambda browser: ele_usr.get_attribute('value') == self.conf['username'])  # 等待输入框填入用户名
-            ele_pss.send_keys(self.conf['password'])
-            self.wait.until(lambda browser: ele_pss.get_attribute('value') == self.conf['password'])
-            time.sleep(1)
-            # ele_rem.click()
-            ele_sub.click()
-            self.wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
-            save_cookies(self.browser, COOKIE_PATH)
-        except TimeoutException:
-            screenshot_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../login_fail.png'))
-            self.browser.save_screenshot(screenshot_path)
-            loguru.logger.error('登录失败，已保存截图到：' + screenshot_path)
-            raise
+        # load_cookies(self.browser, COOKIE_PATH)
+        # self.browser.get(url_points)
+        # # print(self.browser.page_source)
+        # # print(self.browser.current_url)
+        # try:
+        #     # cookie 登录
+        #     WebDriverWait(self.browser, 5).until(lambda browser: 'login' in browser.current_url)
+        #     loguru.logger.warning('Cookie未登录或已过期，重新登录')
+        # except TimeoutException:
+        #     loguru.logger.info('Cookie登录成功')
+        #     self._save_screenshot()
+        #     return
+        # print(browser.page_source)
+        ele_usr = self.wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, "input[type='text']"))
+        ele_pss = self.browser.find_element(By.CSS_SELECTOR, "input[type='password']")
+        # ele_rem = browser.find_element(By.CSS_SELECTOR, "#remember-me+label")
+        ele_sub = self.browser.find_element(By.CSS_SELECTOR, 'button[type="submit"]')
+        ele_usr.send_keys(self.conf['username'])
+        self.wait.until(lambda browser: ele_usr.get_attribute('value') == self.conf['username'])  # 等待输入框填入用户名
+        ele_pss.send_keys(self.conf['password'])
+        self.wait.until(lambda browser: ele_pss.get_attribute('value') == self.conf['password'])
+        time.sleep(1)
+        # ele_rem.click()
+        ele_sub.click()
+        self.wait.until(lambda browser: 'dashboard' in browser.current_url)  # 不等的话下面的url访问后会再回到dashboard
+        save_cookies(self.browser, COOKIE_PATH)
+
 
     def checkin(self):
         # 打卡
@@ -153,10 +149,14 @@ class YuyunCheckerV2(BaseChecker):
             res = 1
         elif ele_checkin.text == '领取奖励':
             ele_checkin.click()
-            # retry = 3
-            if not self.try_solve_captcha():
-                msg = '验证码验证失败'
-                return msg, res
+            retry = 3
+            while not self.try_solve_captcha():
+                retry -= 1
+                if retry <= 0:
+                    msg = '验证码验证失败'
+                    return msg, res
+                loguru.logger.debug('验证码验证失败，重试')
+                self.find_ele_checkin()
             ele_checkin = self.find_ele_checkin()
             if ele_checkin and ele_checkin.text == '已完成':
                 msg = '签到成功！'
@@ -168,8 +168,10 @@ class YuyunCheckerV2(BaseChecker):
         return msg, res
 
     def find_ele_checkin(self):
+        # print(self.browser.current_url)
+        # self._save_screenshot('find_checkin')
         self.browser.get(url_points)
-        ele_tab = self.browser.find_element(By.CSS_SELECTOR, 'div[role="tablist"]')
+        ele_tab = self.wait.until(lambda browser: browser.find_element(By.CSS_SELECTOR, 'div[role="tablist"]'))
         ele_checkin = None
 
         ele_cards = ele_tab.find_elements(By.CLASS_NAME, 'card')
@@ -208,6 +210,7 @@ class YuyunCheckerV2(BaseChecker):
         old_bg_url = self.browser.execute_script("return window.getComputedStyle(arguments[0]).backgroundImage;",
                                                  ele_bg)
         self.browser.find_element(By.ID, 'reload').click()
+        # TODO: this will raise TimeoutException for some reason
         self.wait.until(
             lambda browser: self.browser.execute_script("return window.getComputedStyle(arguments[0]).backgroundImage;",
                                                         ele_bg) != old_bg_url)
@@ -229,14 +232,22 @@ class YuyunCheckerV2(BaseChecker):
             return True
         except TimeoutException:
             loguru.logger.debug('solve captcha failed')
-            with iframe_switch(self.browser, self.wait, 'tcaptcha_iframe_dy'):
-                self.reload_captcha(ele_bg)
-        return False
+            return False
+
+    def _save_screenshot(self, name='yuyunv2'):
+        screenshot_path = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), f'{name}-{time.strftime("%Y%m%d-%H%M%S")}.png'))
+        self.browser.save_screenshot(screenshot_path)
+        loguru.logger.error('已保存截图到：' + screenshot_path)
+        return screenshot_path
 
     def _prepare(self, context: dict, *args, **kwargs):
         self.browser: webdriver.Chrome
         self.wait: WebDriverWait
         self.browser, self.wait = initbrowser()
+
+    def _on_error(self, context: dict, *args, **kwargs):
+        self._save_screenshot()
 
     def _check(self, context: dict, *args, **kwargs):
         try:

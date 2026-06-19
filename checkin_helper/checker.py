@@ -24,6 +24,9 @@ class BaseChecker:
     def _prepare(self, context: dict, *args, **kwargs):
         ...
 
+    def _on_error(self, context: dict, *args, **kwargs):
+        ...
+
     def _finally(self, context: dict, *args, **kwargs):
         ...
 
@@ -46,6 +49,7 @@ class BaseChecker:
                     report(title, err.detail, self.conf['url'])
                 else:
                     report(title)
+                self._on_error(self.context, err)
                 if i != 0:
                     time.sleep(self.timeout)
             except Exception as err:
@@ -53,6 +57,7 @@ class BaseChecker:
                 title = f"{self.name}：签到失败！" + ("finished" if i == 0 else ('remain: ' + str(i - 1)))
                 content = str(type(err).__name__ + '\n' + str(err))
                 report(title, content)
+                self._on_error(self.context, err)
                 if i != 0:
                     time.sleep(self.timeout)
         self._finally(self.context)

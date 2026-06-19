@@ -3,7 +3,7 @@ import time
 import loguru
 import requests as r
 from PIL import Image
-from utils.fuckcaptcha import init_ocr, get_threshold_color, fuckcaptcha, dataurl_to_img
+# from utils.fuckcaptcha import get_threshold_color, fuckcaptcha, dataurl_to_img
 from checker import BaseChecker, CheckError
 from utils.hashing import md5
 

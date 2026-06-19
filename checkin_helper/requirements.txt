@@ -1,1 +1,5 @@
-selenium == 4.5.0
+beautifulsoup4==4.12.2
+browser-cookie3==0.19.1
+ddddocr
+loguru
+selenium==4.5.0
